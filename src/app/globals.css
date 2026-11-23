@@ -1,0 +1,78 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --bg-canvas: #f8fafc;
+    --bg-surface: #ffffff;
+    --border-subtle: #e2e8f0;
+    --brand-primary: #312e81;
+    --brand-primary-hover: #3730a3;
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply bg-slate-50 text-slate-900 font-sans selection:bg-indigo-900 selection:text-white;
+  }
+
+  h1,
+  h2,
+  .font-academic {
+    font-family: var(--font-serif), Georgia, Cambria, "Times New Roman", Times, serif;
+    letter-spacing: -0.015em;
+  }
+}
+
+@layer components {
+  /* Superfícies e Cards Acadêmicos */
+  .academic-card {
+    @apply bg-white border border-slate-200 rounded-xl shadow-xs transition-all duration-150;
+  }
+
+  .academic-card-hover {
+    @apply hover:border-slate-300 hover:shadow-sm;
+  }
+
+  /* Badges Semânticos de Aprendizado */
+  .badge-teach {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200;
+  }
+
+  .badge-learn {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-200;
+  }
+
+  .badge-pending {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200;
+  }
+
+  .badge-neutral {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200;
+  }
+
+  /* Botões Institucionais */
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium bg-indigo-900 text-white hover:bg-indigo-800 focus:outline-none focus:ring-2 focus:ring-indigo-900 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-300 disabled:opacity-50 transition-colors;
+  }
+
+  /* Campos de Formulário */
+  .input-academic {
+    @apply w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-900 focus:outline-none focus:ring-1 focus:ring-indigo-900 transition-colors;
+  }
+
+  .label-academic {
+    @apply block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5;
+  }
+}
