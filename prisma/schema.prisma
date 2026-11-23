@@ -1,0 +1,168 @@
+// ============================================================================
+// MODELAGEM DO BANCO DE DADOS RELACIONAL — SKILLSWAP (PostgreSQL + Prisma ORM)
+// Referência Pedagógica: Receita 22 (Acesso e Modelagem de Banco de Dados)
+// ============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  // A variável DATABASE_URL é lida do arquivo .env (compatível com Docker local ou Supabase)
+  url      = env("DATABASE_URL")
+}
+
+// Define se o estudante ENSINA (TEACH) ou QUER APRENDER (LEARN) determinada habilidade
+enum SkillRelationType {
+  TEACH
+  LEARN
+}
+
+// Nível de proficiência acadêmica do estudante na habilidade
+enum ProficiencyLevel {
+  INICIANTE
+  INTERMEDIARIO
+  AVANCADO
+}
+
+// Máquina de 6 Estados obrigatórios do ciclo de vida de uma troca de conhecimentos
+enum ExchangeStatus {
+  SOLICITACAO_ENVIADA // 1. Proposta inicial criada pelo solicitante
+  AGUARDANDO_ACEITE   // 2. Receptor visualizou e colocou a proposta em análise
+  CONFIRMADA          // 3. Receptor aceitou a troca; libera agendamento de encontros
+  EM_ANDAMENTO        // 4. Sessões de mentoria (online ou presenciais) em realização
+  CONCLUIDA           // 5. Ciclo de estudos finalizado; libera avaliação por pares
+  AVALIADA            // 6. Avaliada com nota 1-5 e certificada no Histórico de Aprendizagem
+}
+
+// Modalidade do encontro agendado na agenda acadêmica (/calendar)
+enum MeetingMode {
+  ONLINE
+  PRESENCIAL
+}
+
+// Entidade de Usuário (Estudante / Pesquisador / Mentor)
+model User {
+  id                String   @id @default(cuid())
+  name              String
+  email             String   @unique
+  passwordHash      String   // Hash seguro gerado via bcryptjs (nunca armazena senha em texto puro)
+  bio               String?  @db.Text
+  avatarUrl         String?
+  institutionOrArea String?  // Ex.: "Sistemas de Informação — UFRN"
+  city              String?  // Ex.: "Natal, RN"
+  latitude          Float?   // Coordenada para cálculo de distância via Fórmula de Haversine
+  longitude         Float?   // Coordenada para cálculo de distância via Fórmula de Haversine
+  createdAt         DateTime @default(now())
+
+  // Relacionamentos 1:N
+  skills            UserSkill[]
+  sentExchanges     Exchange[]  @relation("ExchangeRequester")
+  receivedExchanges Exchange[]  @relation("ExchangeReceiver")
+  reviewsAuthored   Review[]    @relation("ReviewAuthor")
+  reviewsReceived   Review[]    @relation("ReviewTarget")
+
+  // Índices para acelerar buscas em /discover
+  @@index([city])
+  @@index([institutionOrArea])
+}
+
+// Catálogo Global de Habilidades / Disciplinas Acadêmicas
+model Skill {
+  id          String   @id @default(cuid())
+  name        String   @unique // Ex.: "Python", "Inglês", "Cálculo Diferencial e Integral"
+  category    String   // Ex.: "Programação", "Idiomas", "Matemática", "Design", "Música"
+  description String?  @db.Text
+  createdAt   DateTime @default(now())
+
+  userSkills         UserSkill[]
+  offeredExchanges   Exchange[]  @relation("OfferedSkill")
+  requestedExchanges Exchange[]  @relation("RequestedSkill")
+
+  @@index([category])
+  @@index([name])
+}
+
+// Tabela associativa que vincula um Usuário a uma Habilidade (Ensina ou Quer Aprender)
+model UserSkill {
+  id        String            @id @default(cuid())
+  userId    String
+  skillId   String
+  type      SkillRelationType // TEACH (Ensina) ou LEARN (Quer Aprender)
+  level     ProficiencyLevel  @default(INTERMEDIARIO)
+  notes     String?           @db.Text // Ementa, foco metodológico ou observações
+  createdAt DateTime          @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skill Skill @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  // Impede que o mesmo usuário cadastre a mesma skill duas vezes na mesma modalidade
+  @@unique([userId, skillId, type])
+  @@index([userId, type])
+  @@index([skillId, type])
+}
+
+// Registro de Troca de Conhecimentos entre dois estudantes (Solicitante <-> Receptor)
+model Exchange {
+  id               String         @id @default(cuid())
+  requesterId      String         // Usuário que enviou a proposta
+  receiverId       String         // Usuário que recebeu a proposta
+  offeredSkillId   String         // Habilidade que o solicitante oferece ensinar
+  requestedSkillId String         // Habilidade que o solicitante deseja aprender com o receptor
+  status           ExchangeStatus @default(SOLICITACAO_ENVIADA)
+  message          String?        @db.Text
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  requester      User      @relation("ExchangeRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  receiver       User      @relation("ExchangeReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  offeredSkill   Skill     @relation("OfferedSkill", fields: [offeredSkillId], references: [id], onDelete: Restrict)
+  requestedSkill Skill     @relation("RequestedSkill", fields: [requestedSkillId], references: [id], onDelete: Restrict)
+  meetings       Meeting[]
+  reviews        Review[]
+
+  @@index([requesterId, status])
+  @@index([receiverId, status])
+  @@index([status])
+}
+
+// Encontros agendados vinculados a uma troca confirmada ou em andamento (/calendar)
+model Meeting {
+  id                    String      @id @default(cuid())
+  exchangeId            String
+  scheduledAt           DateTime
+  durationMinutes       Int         @default(60)
+  mode                  MeetingMode @default(ONLINE)
+  locationName          String?     // Nome do campus/sala (PRESENCIAL) ou título da sala (ONLINE)
+  meetingUrl            String?     // Link da videoconferência para sessões ONLINE
+  latitude              Float?      // Coordenada capturada via Browser Geolocation API
+  longitude             Float?      // Coordenada capturada via Browser Geolocation API
+  googleCalendarEventId String?     // ID do evento criado via Google Calendar REST API (quando OAuth2 ativo)
+  googleCalendarLink    String?     @db.Text // Link direto para adicionar o encontro ao Google Calendar
+  createdAt             DateTime    @default(now())
+
+  exchange Exchange @relation(fields: [exchangeId], references: [id], onDelete: Cascade)
+
+  @@index([exchangeId])
+  @@index([scheduledAt])
+}
+
+// Avaliações por pares (1 a 5 estrelas + parecer) registradas ao concluir uma troca
+model Review {
+  id         String   @id @default(cuid())
+  exchangeId String
+  authorId   String   // Estudante que escreveu a avaliação
+  targetId   String   // Estudante/mentor que recebeu a avaliação
+  rating     Int      // Nota inteira de 1 a 5
+  comment    String   @db.Text
+  createdAt  DateTime @default(now())
+
+  exchange Exchange @relation(fields: [exchangeId], references: [id], onDelete: Cascade)
+  author   User     @relation("ReviewAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  target   User     @relation("ReviewTarget", fields: [targetId], references: [id], onDelete: Cascade)
+
+  // Constraint única: garante que cada participante avalie cada troca apenas uma única vez
+  @@unique([exchangeId, authorId])
+  @@index([targetId])
+}
